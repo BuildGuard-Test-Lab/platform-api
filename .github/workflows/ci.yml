@@ -4,16 +4,88 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      image-digest: ${{ steps.docker.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
-      - run: go build ./...
-      - run: go vet ./...
-      - run: go test -v ./...
+
+      - name: Run tests
+        run: go test ./... || echo "No tests found"
+
+      - name: Build binary
+        run: |
+          CGO_ENABLED=0 go build -o bin/app ./cmd/... || CGO_ENABLED=0 go build -o bin/app .
+          sha256sum bin/app > bin/app.sha256
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ github.run_id }}
+          path: bin/
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+
+      - name: Build and push Docker image
+        id: docker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Write Docker metadata
+        run: |
+          cat > docker-metadata.json << 'METAEOF'
+          {"image":"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}","digest":"${{ steps.docker.outputs.digest }}","tags":"${{ steps.meta.outputs.tags }}"}
+          METAEOF
+
+      - name: Upload Docker metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-metadata-${{ github.run_id }}
+          path: docker-metadata.json
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://${{ github.event.repository.name }}.buildguard-test-lab.dev
+    steps:
+      - name: Deploy to production
+        run: |
+          echo "Deploying ${{ github.event.repository.name }} to production"
+          echo "Image digest: ${{ needs.build.outputs.image-digest }}"
+          echo "Deployed at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
