@@ -79,6 +79,24 @@ jobs:
           name: docker-metadata-${{ github.run_id }}
           path: docker-metadata.json
 
+      - name: Sign container image
+        if: github.event_name == 'push'
+        run: |
+          echo "Signing image with cosign..."
+          echo "Key fingerprint: ${COSIGN_KEY:0:8}..."
+          echo "Image signed successfully (simulated)"
+        env:
+          COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
+
+      - name: Notify deployment channel
+        if: always()
+        run: |
+          echo "Sending Slack notification..."
+          echo "Webhook: ${SLACK_WEBHOOK_URL:0:20}..."
+          echo "Notification sent (simulated)"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
