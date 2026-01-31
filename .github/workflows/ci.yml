@@ -66,9 +66,12 @@ jobs:
 
       - name: Write Docker metadata
         run: |
-          cat > docker-metadata.json << 'METAEOF'
-          {"image":"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}","digest":"${{ steps.docker.outputs.digest }}","tags":"${{ steps.meta.outputs.tags }}"}
-          METAEOF
+          printf '{"image":"%s","digest":"%s","tags":"%s"}' \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" \
+            "${{ steps.docker.outputs.digest }}" \
+            "$(echo '${{ steps.meta.outputs.tags }}' | tr '\n' ',' | sed 's/,$//')" \
+            > docker-metadata.json
+          cat docker-metadata.json
 
       - name: Upload Docker metadata
         uses: actions/upload-artifact@v4
