@@ -1,14 +1,5 @@
 # Platform API
 
-Core API gateway for the platform. Handles authentication, routing, and request orchestration.
+Core platform service.
 
-## Tech Stack
-- Go 1.22
-- Chi router
-- PostgreSQL
-- Redis for caching
-
-## Getting Started
-```bash
-go run cmd/server/main.go
-```
+PBOM e2e test trigger: 2026-01-31T18:34:18Z
