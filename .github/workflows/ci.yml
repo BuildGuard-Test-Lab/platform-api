@@ -8,6 +8,8 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
 
 env:
   REGISTRY: ghcr.io
@@ -69,7 +71,8 @@ jobs:
           printf '{"image":"%s","digest":"%s","tags":"%s"}' \
             "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" \
             "${{ steps.docker.outputs.digest }}" \
-            "$(echo '${{ steps.meta.outputs.tags }}' | tr '\n' ',' | sed 's/,$//')" \
+            "$(echo '${{ steps.meta.outputs.tags }}' | tr '
+' ',' | sed 's/,$//')" \
             > docker-metadata.json
           cat docker-metadata.json
 
@@ -78,6 +81,29 @@ jobs:
         with:
           name: docker-metadata-${{ github.run_id }}
           path: docker-metadata.json
+
+      - name: Attest build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.docker.outputs.digest }}
+          push-to-registry: true
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.docker.outputs.digest }}
+          format: json
+          output: trivy-report.json
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report-${{ github.run_id }}
+          path: trivy-report.json
+          retention-days: 30
 
       - name: Sign container image
         if: github.event_name == 'push'
