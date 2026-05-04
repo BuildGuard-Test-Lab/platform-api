@@ -7,7 +7,7 @@ permissions:
 
 jobs:
   get-token:
-    uses: BuildGuard-Test-Lab/token-broker/.github/workflows/mint-token.yml@dev
+    uses: BuildGuard-Test-Lab/token-broker/.github/workflows/mint-token.yml@main
     with:
       target_repo: token-broker
       permissions: '{"contents":"read"}'
