@@ -1,0 +1,37 @@
+name: Test Token Broker (Cross-Repo)
+on: workflow_dispatch
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  get-token:
+    uses: BuildGuard-Test-Lab/token-broker/.github/workflows/mint-token.yml@dev
+    with:
+      target_repo: token-broker
+      permissions: '{"contents":"read"}'
+    secrets: inherit
+
+  use-token:
+    needs: get-token
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decode and verify token
+        env:
+          TOKEN_B64: ${{ needs.get-token.outputs.token }}
+        run: |
+          TOKEN=$(echo "$TOKEN_B64" | base64 -d)
+          echo "::add-mask::$TOKEN"
+          echo "Cross-repo test: platform-api calling broker for token-broker access..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/BuildGuard-Test-Lab/token-broker/contents/)
+          echo "HTTP Status: $HTTP_CODE"
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "Cross-repo access verified: platform-api can read token-broker."
+          else
+            echo "FAILED: Expected 200, got $HTTP_CODE"
+            exit 1
+          fi
