@@ -11,6 +11,7 @@ jobs:
     with:
       target_repo: token-broker
       permissions: '{"contents":"read"}'
+    secrets: inherit
 
   use-token:
     needs: get-token
